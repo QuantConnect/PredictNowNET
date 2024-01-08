@@ -18,44 +18,30 @@ using Newtonsoft.Json;
 namespace QuantConnect.PredictNowNET.Models;
 
 /// <summary>
-/// Provides the status and results of a backtest or live prediction job
+/// Information on a newly created task: in-sample and out-of-sample backtest and live prediction
 /// </summary>
-public class Job
+public class JobCreationResult
 {
     /// <summary>
-    /// Unique identifier of a job 
+    /// Unique identifier of a job
     /// </summary>
-    [JsonProperty(PropertyName = "cpo_job_id")]
+    [JsonProperty(PropertyName = "task_id")]
     public string Id { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// Status: SUCCESS or PENDING
+    /// Information about the task
     /// </summary>
-    [JsonProperty(PropertyName = "cpo_job_status")]
-    public string Status { get; internal set; } = string.Empty;
+    [JsonProperty(PropertyName = "message")]
+    public string Message { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// Performance metrics such as returns, risk and sharpe ratio
+    /// Represents an empty TaskResult (not associated with a valid task)
     /// </summary>
-    [JsonProperty(PropertyName = "cpo_result")]
-    [JsonConverter(typeof(PerformanceJsonConverter))]
-    public Performance Performance { get; internal set; } = Performance.Null;
-
-    /// <summary>
-    /// Tracks the progress of the job
-    /// </summary>
-    [JsonProperty(PropertyName = "progress")]
-    [JsonConverter(typeof(ProgressJsonConverter))]
-    public Progress Progress { get; internal set; } = Progress.Null;
-
-    /// <summary>
-    /// Represents an empty job (not associated with a valid backtest)
-    /// </summary>
-    public static Job Null => new();
+    public static JobCreationResult Null => new();
 
     /// <summary>
     /// Returns a string that represents the current object
     /// </summary>
     /// <returns>A string that represents the current object</returns>
-    public override string ToString() => JsonConvert.SerializeObject(this);
+    public override string ToString() => $"{Message}: Id {Id}";
 }

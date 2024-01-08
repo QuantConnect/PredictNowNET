@@ -14,6 +14,7 @@
 */
 
 using Newtonsoft.Json;
+using QuantConnect.Configuration;
 using QuantConnect.PredictNowNET.Models;
 using RestSharp;
 
@@ -28,12 +29,33 @@ public class PredictNowClient
     private readonly string _userId;
 
     /// <summary>
+    /// Creates a new instance of REST Client for PredictNow CPO for a given user 
+    /// </summary>
+    /// <param name="userId">User identification</param>
+    /// <returns></returns>
+    public static PredictNowClient CreateClient(string userId) 
+    {
+        var baseUrl = Config.Get("predict-now-url");
+        return new PredictNowClient(baseUrl, userId);
+    }
+
+    /// <summary>
     /// Creates a new instance of the REST Client for PredictNow CPO 
     /// </summary>
     /// <param name="baseUrl">The base URL to PredictNow REST endpoints</param>
     /// <param name="userId">User identification</param>
-    public PredictNowClient(string baseUrl, string userId)
+    protected PredictNowClient(string baseUrl, string userId)
     {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new ArgumentNullException($"PredictNowClient: {nameof(baseUrl)} cannot be null, empty, or consists only of white-space characters.");
+        }
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentNullException($"PredictNowClient: {nameof(userId)} cannot be null, empty, or consists only of white-space characters.");
+        }
+
         _userId = userId;
         _client = new RestClient(baseUrl);
     }
@@ -91,7 +113,7 @@ public class PredictNowClient
     /// <param name="samplingProportion">Float between 0 and 1, the fraction of base strategies to be kept. This parameter is usually set to 0.3 or 0.4.</param>
     /// <param name="debug">Will output more information in the backend when set to `debug`, and will not affect the performance or prediction.</param>
     /// <returns>Tuple of string. The first contains the message on the job submission, and the second the job id.</returns>
-    public (string, string) RunInSampleBacktest(PortfolioParameters portfolioParameters, DateTime trainingStartDate, DateTime trainingEndDate, double samplingProportion, string? debug = null)
+    public JobCreationResult RunInSampleBacktest(PortfolioParameters portfolioParameters, DateTime trainingStartDate, DateTime trainingEndDate, double samplingProportion, string? debug = null)
     {
         return RunBacktest("run-insample-backtest", portfolioParameters, trainingStartDate, trainingEndDate, samplingProportion, debug);
     }
@@ -104,7 +126,7 @@ public class PredictNowClient
     /// <param name="trainingEndDate">The experiment terminates when the start of the period exceed the training end date.</param>
     /// <param name="debug">Will output more information in the backend when set to `debug`, and will not affect the performance or prediction.</param>
     /// <returns>Tuple of string. The first contains the message on the job submission, and the second the job id.</returns>
-    public (string, string) RunOutOfSampleBacktest(PortfolioParameters portfolioParameters, DateTime trainingStartDate, DateTime trainingEndDate, string? debug = null)
+    public JobCreationResult RunOutOfSampleBacktest(PortfolioParameters portfolioParameters, DateTime trainingStartDate, DateTime trainingEndDate, string? debug = null)
     {
         return RunBacktest("run-oos-backtest", portfolioParameters, trainingStartDate, trainingEndDate, null, debug);
     }
@@ -118,21 +140,19 @@ public class PredictNowClient
     /// <param name="marketDays">The number of market days in the incoming rebalancing period. </param>
     /// <param name="debug">Will output more information in the backend when set to `debug`, and will not affect the performance or prediction.</param>
     /// <returns>Tuple of string. The first contains the message on the job submission, and the second the job id.</returns>
-    public (string, string) RunLivePrediction(PortfolioParameters portfolioParameters, DateTime rebalanceDate, DateTime nextRebalanceDate, int? marketDays = null, string? debug = null)
+    public JobCreationResult RunLivePrediction(PortfolioParameters portfolioParameters, DateTime rebalanceDate, DateTime nextRebalanceDate, int? marketDays = null, string? debug = null)
     {
         portfolioParameters.SetUserId(_userId);
         var livePredictionParameters = new LivePredictionParameters(portfolioParameters, rebalanceDate, nextRebalanceDate, marketDays, debug);
         var value = JsonConvert.SerializeObject(livePredictionParameters);
 
-        var request = new RestRequest("run-live-prediction", Method.Post) { RequestFormat = DataFormat.Json };
+        var request = new RestRequest("run-live-prediction", Method.POST) { RequestFormat = DataFormat.Json };
         request.AddParameter("application/json", value, ParameterType.RequestBody);
 
         var response = _client.Execute(request);
-        if (string.IsNullOrEmpty(response?.Content)) return (string.Empty, string.Empty);
+        if (string.IsNullOrEmpty(response?.Content)) return JobCreationResult.Null;
 
-        var jsonResponse = JsonConvert.DeserializeAnonymousType(response.Content, new { message = string.Empty, task_id = string.Empty });
-
-        return (jsonResponse.message, jsonResponse.task_id);
+        return JsonConvert.DeserializeObject<JobCreationResult>(response.Content) ?? JobCreationResult.Null;
     }
 
     /// <summary>
@@ -242,7 +262,7 @@ public class PredictNowClient
             return $"{fileInfo.FullName} does not exist";
         }
 
-        var request = new RestRequest("upload-data", Method.Post) { RequestFormat = DataFormat.Json };
+        var request = new RestRequest("upload-data", Method.POST) { RequestFormat = DataFormat.Json };
         request.AddHeader("Content-Type", "multipart/form-data");
         request.AddParameter("email", _userId);
         request.AddParameter("type", type);
@@ -291,21 +311,19 @@ public class PredictNowClient
     /// <param name="samplingProportion">Float between 0 and 1, the fraction of base strategies to be kept. This parameter is usually set to 0.3 or 0.4.</param>
     /// <param name="debug">Will output more information in the backend when set to `debug`, and will not affect the performance or prediction.</param>
     /// <returns>Tuple of string. The first contains the message on the job submission, and the second the job id.</returns>
-    private (string, string) RunBacktest(string resource, PortfolioParameters portfolioParameters,
+    private JobCreationResult RunBacktest(string resource, PortfolioParameters portfolioParameters,
         DateTime trainingStartDate, DateTime trainingEndDate, double? samplingProportion = null, string? debug = null)
     {
         portfolioParameters.SetUserId(_userId);
         var backtestParameters = new BacktestParameters(portfolioParameters, trainingStartDate, trainingEndDate, samplingProportion, debug);
         var value = JsonConvert.SerializeObject(backtestParameters);
 
-        var request = new RestRequest(resource, Method.Post) { RequestFormat = DataFormat.Json };
+        var request = new RestRequest(resource, Method.POST) { RequestFormat = DataFormat.Json };
         request.AddParameter("application/json", value, ParameterType.RequestBody);
 
         var response = _client.Execute(request);
-        if (string.IsNullOrEmpty(response?.Content)) return (string.Empty, string.Empty);
-        
-        var jsonResponse = JsonConvert.DeserializeAnonymousType(response.Content, new { message = string.Empty, task_id = string.Empty });
+        if (string.IsNullOrEmpty(response?.Content)) return JobCreationResult.Null;
 
-        return (jsonResponse.message, jsonResponse.task_id);
+        return JsonConvert.DeserializeObject<JobCreationResult>(response.Content) ?? JobCreationResult.Null;
     }
 }

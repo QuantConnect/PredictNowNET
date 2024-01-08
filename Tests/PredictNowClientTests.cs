@@ -14,6 +14,7 @@
 */
 
 using NUnit.Framework;
+using QuantConnect.Configuration;
 using QuantConnect.PredictNowNET.Models;
 
 namespace QuantConnect.PredictNowNET.Test;
@@ -26,9 +27,9 @@ public class PredictNowClientTests
     [SetUp]
     public void Setup()
     {
-        var baseUrl = Environment.GetEnvironmentVariable("PREDICTNOW-BASEURL");
+        Config.Set("predict-now-url", Environment.GetEnvironmentVariable("PREDICTNOW-BASEURL"));
         var email = Environment.GetEnvironmentVariable("PREDICTNOW-USER-EMAIL");
-        _client = new PredictNowClient(baseUrl, email);
+        _client = PredictNowClient.CreateClient(email);
         _portfolioParameters = new PortfolioParameters("Demo_Project_20231211", "ETF_return.csv", "ETF_constrain.csv", 1.0, "month", 1, "first", 3, "sharpe");
     }
 
@@ -98,21 +99,21 @@ public class PredictNowClientTests
     [Test, Order(4)]
     public void RunInSampleBacktestSuccessfully()
     {
-        var (message, jobId) = _client.RunInSampleBacktest(_portfolioParameters, new DateTime(2019, 01, 01), new DateTime(2019, 12, 31), 0.3, "debug");
-        Assert.That(message, Is.EqualTo("job submitted for cpo in-sample backtesting."));
-        Assert.That(jobId.Length, Is.GreaterThan(0));
-        Console.WriteLine($"RunInSampleBacktestSuccessfully: {jobId}");
-        GetJobForId(jobId);
+        var jobCreationResult = _client.RunInSampleBacktest(_portfolioParameters, new DateTime(2019, 01, 01), new DateTime(2019, 12, 31), 0.3, "debug");
+        Assert.That(jobCreationResult.Message, Is.EqualTo("job submitted for cpo in-sample backtesting."));
+        Assert.That(jobCreationResult.Id.Length, Is.GreaterThan(0));
+        Console.WriteLine($"RunInSampleBacktestSuccessfully: {jobCreationResult.Id}");
+        GetJobForId(jobCreationResult.Id);
     }
 
     [Test, Order(5)]
     public void RunOutOfSampleBacktestSuccessfully()
     {
-        var (message, jobId) = _client.RunOutOfSampleBacktest(_portfolioParameters, new DateTime(2019, 01, 01), new DateTime(2019, 12, 31), "debug");
-        Assert.That(message, Is.EqualTo("job submitted for cpo back-testing."));
-        Assert.That(jobId.Length, Is.GreaterThan(0));
-        Console.WriteLine($"RunOutOfSampleBacktestSuccessfully: {jobId}");
-        GetJobForId(jobId);
+        var jobCreationResult = _client.RunOutOfSampleBacktest(_portfolioParameters, new DateTime(2019, 01, 01), new DateTime(2019, 12, 31), "debug");
+        Assert.That(jobCreationResult.Message, Is.EqualTo("job submitted for cpo back-testing."));
+        Assert.That(jobCreationResult.Id.Length, Is.GreaterThan(0));
+        Console.WriteLine($"RunOutOfSampleBacktestSuccessfully: {jobCreationResult.Id}");
+        GetJobForId(jobCreationResult.Id);
     }
 
     [Test, Order(6)]
@@ -132,11 +133,11 @@ public class PredictNowClientTests
     [Test, Order(7)]
     public void RunLivePreditionSuccessfully()
     {
-        var (message, jobId) = _client.RunLivePrediction(_portfolioParameters, new DateTime(2022, 07, 01), new DateTime(2022, 08, 01), debug: "debug");
-        Assert.That(message, Is.EqualTo("job submitted for cpo live prediction."));
-        Assert.That(jobId.Length, Is.GreaterThan(0));
-        Console.WriteLine($"RunLivePreditionSuccessfully: {jobId}");
-        GetJobForId(jobId);
+        var jobCreationResult = _client.RunLivePrediction(_portfolioParameters, new DateTime(2022, 07, 01), new DateTime(2022, 08, 01), debug: "debug");
+        Assert.That(jobCreationResult.Message, Is.EqualTo("job submitted for cpo live prediction."));
+        Assert.That(jobCreationResult.Id.Length, Is.GreaterThan(0));
+        Console.WriteLine($"RunLivePreditionSuccessfully: {jobCreationResult.Id}");
+        GetJobForId(jobCreationResult.Id);
     }
 
     [Test, Order(8)]

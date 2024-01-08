@@ -38,7 +38,7 @@ public class Progress
     /// <summary>
     /// Represents an empty progress (not associated with a valid backtest)
     /// </summary>
-    static public Progress Null = new ();
+    static public Progress Null => new ();
 }
 
 /// <summary>
