@@ -1,0 +1,1 @@
+﻿Console.WriteLine("Empty entrypoint to generate runtime json for Pythonnet");
