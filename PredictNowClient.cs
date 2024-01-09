@@ -14,6 +14,7 @@
 */
 
 using Newtonsoft.Json;
+using Python.Runtime;
 using QuantConnect.Configuration;
 using QuantConnect.PredictNowNET.Models;
 using RestSharp;
@@ -202,6 +203,20 @@ public class PredictNowClient
     }
 
     /// <summary>
+    /// Get the backtest weights
+    /// </summary>
+    /// <param name="portfolioParameters">Portfolio parameters</param>
+    /// <param name="trainingStartDate">Start date of the first rebalancing period to be included in the experiment.</param>
+    /// <param name="trainingEndDate">The experiment terminates when the start of the period exceed the training end date.</param>
+    /// <param name="debug">Will output more information in the backend when set to `debug`, and will not affect the performance or prediction.</param>
+    /// <returns>Dictionary of weights ordered keyed by date</returns>
+    public PyDict GetBacktestWeights(PyObject portfolioParameters, DateTime trainingStartDate, DateTime trainingEndDate, string? debug = null)
+    {
+        var weights = GetBacktestWeights(portfolioParameters.As<PortfolioParameters>(), trainingStartDate, trainingEndDate, debug);
+        return ConvertCSharpDictionaryToPythonDict(weights);
+    }
+
+    /// <summary>
     /// Get the live prediction weights
     /// </summary>
     /// <param name="portfolioParameters">Portfolio parameters</param>
@@ -223,6 +238,20 @@ public class PredictNowClient
         var result = JsonConvert.DeserializeObject<Dictionary<DateTime, Dictionary<string, double>>>(response?.Content ?? string.Empty);
 
         return result ?? new Dictionary<DateTime, Dictionary<string, double>>();
+    }
+
+    /// <summary>
+    /// Get the live prediction weights
+    /// </summary>
+    /// <param name="portfolioParameters">Portfolio parameters</param>
+    /// <param name="rebalanceDate">The target rebalance date.</param>
+    /// <param name="marketDays">The number of market days in the incoming rebalancing period. </param>
+    /// <param name="debug">Will output more information in the backend when set to `debug`, and will not affect the performance or prediction.</param>
+    /// <returns>Dictionary of weights ordered keyed by date</returns>
+    public PyDict GetLivePredictionWeights(PyObject portfolioParameters, DateTime rebalanceDate, int? marketDays = null, string? debug = null)
+    {
+        var weights = GetLivePredictionWeights(portfolioParameters.As<PortfolioParameters>(), rebalanceDate, marketDays, debug);
+        return ConvertCSharpDictionaryToPythonDict(weights);
     }
 
     /// <summary>
@@ -325,5 +354,27 @@ public class PredictNowClient
         if (string.IsNullOrEmpty(response?.Content)) return JobCreationResult.Null;
 
         return JsonConvert.DeserializeObject<JobCreationResult>(response.Content) ?? JobCreationResult.Null;
+    }
+
+    /// <summary>
+    /// Converts C# Dictionary to PyDict
+    /// </summary>
+    /// <param name="keyValuePairs">C# Dictionary</param>
+    /// <returns>Python Dictionary</returns>
+    private PyDict ConvertCSharpDictionaryToPythonDict(Dictionary<DateTime, Dictionary<string, double>> keyValuePairs)
+    {
+        PyDict result = new();
+        foreach (var kvp in keyValuePairs)
+        {
+            var innerDict = new PyDict();
+
+            foreach (var pair in kvp.Value)
+            {
+                innerDict.SetItem(pair.Key, pair.Value.ToPython());
+            }
+            result.SetItem(kvp.Key.ToPython(), innerDict);
+
+        }
+        return result;
     }
 }
